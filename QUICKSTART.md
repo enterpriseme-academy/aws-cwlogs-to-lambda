@@ -81,8 +81,8 @@ terraform apply -auto-approve
 ```
 
 **What gets created:**
-- Account A: 1 Lambda function, 1 IAM role, 1 Lambda permission
-- Account B: 1 Log group, 1 IAM role, 1 Destination, 1 Subscription filter
+- Account A: 1 Lambda function, 2 IAM roles, 1 Lambda permission, 1 CloudWatch Destination
+- Account B: 1 Log group, 1 Subscription filter
 
 ### Step 5: Test the Setup
 
