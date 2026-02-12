@@ -16,10 +16,23 @@ This Terraform configuration deploys a cross-account setup where CloudWatch Logs
 │  │  IAM Permission:                  │ │
 │  │  - Allows Account B to invoke     │ │
 │  └───────────────────────────────────┘ │
+│                ▲                        │
+│                │                        │
+│  ┌───────────────────────────────────┐ │
+│  │  CloudWatch Destination           │ │
+│  │  - Receives from Account B        │ │
+│  │  - Invokes Lambda                 │ │
+│  │                                   │ │
+│  │  IAM Role:                        │ │
+│  │  - Allows invoking Lambda         │ │
+│  │                                   │ │
+│  │  Destination Policy:              │ │
+│  │  - Allows Account B to use it     │ │
+│  └───────────────────────────────────┘ │
 └─────────────────────────────────────────┘
                     ▲
-                    │ Cross-Account Invocation
-                    │
+                    │ Cross-Account
+                    │ Subscription
 ┌─────────────────────────────────────────┐
 │         Account B (CloudWatch)          │
 │                                         │
@@ -32,15 +45,7 @@ This Terraform configuration deploys a cross-account setup where CloudWatch Logs
 │  ┌───────────────────────────────────┐ │
 │  │  Subscription Filter              │ │
 │  │  - Filters log events             │ │
-│  └───────────────────────────────────┘ │
-│                │                        │
-│                ▼                        │
-│  ┌───────────────────────────────────┐ │
-│  │  CloudWatch Destination           │ │
-│  │  - Points to Lambda in Account A  │ │
-│  │                                   │ │
-│  │  IAM Role:                        │ │
-│  │  - Allows invoking Lambda         │ │
+│  │  - Points to destination in A     │ │
 │  └───────────────────────────────────┘ │
 └─────────────────────────────────────────┘
 ```
@@ -49,15 +54,15 @@ This Terraform configuration deploys a cross-account setup where CloudWatch Logs
 
 ### Account A (Lambda Account)
 - **Lambda Function**: Python function that receives, decompresses, and prints CloudWatch Logs
-- **IAM Role**: Allows Lambda to write to CloudWatch Logs for its own execution
+- **Lambda IAM Role**: Allows Lambda to write to CloudWatch Logs for its own execution
 - **Lambda Permission**: Allows CloudWatch Logs from Account B to invoke the Lambda function
+- **CloudWatch Destination**: Receives log events from Account B and invokes Lambda
+- **Destination IAM Role**: Allows the destination to invoke the Lambda function
+- **Destination Policy**: Allows Account B to use the destination
 
 ### Account B (CloudWatch Account)
 - **CloudWatch Log Group**: Stores application logs
-- **CloudWatch Destination**: Points to the Lambda function in Account A
-- **IAM Role**: Allows CloudWatch Logs to invoke the Lambda function in Account A
-- **Subscription Filter**: Filters and forwards log events to the destination
-- **Destination Policy**: Allows the log group to use the destination
+- **Subscription Filter**: Filters and forwards log events to the destination in Account A
 
 ## Prerequisites
 
