@@ -1,0 +1,9 @@
+# Terraform files
+*.tf linguist-language=HCL
+*.tfvars linguist-language=HCL
+
+# Python files
+*.py linguist-language=Python
+
+# Markdown files
+*.md linguist-documentation
