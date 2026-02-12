@@ -35,11 +35,11 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 resource "aws_lambda_function" "log_processor" {
   filename         = data.archive_file.lambda_zip.output_path
   function_name    = var.lambda_function_name
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "index.lambda_handler"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "index.lambda_handler"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  runtime         = "python3.9"
-  timeout         = 60
+  runtime          = "python3.9"
+  timeout          = 60
 
   environment {
     variables = {
@@ -52,10 +52,78 @@ resource "aws_lambda_function" "log_processor" {
 
 # Lambda permission to allow CloudWatch Logs from Account B to invoke the function
 resource "aws_lambda_permission" "allow_cloudwatch" {
-  statement_id   = "AllowExecutionFromCloudWatchLogs"
-  action         = "lambda:InvokeFunction"
-  function_name  = aws_lambda_function.log_processor.function_name
-  principal      = "logs.amazonaws.com"
-  source_account = var.cloudwatch_account_id
-  source_arn     = var.cloudwatch_log_group_arn
+  statement_id  = "AllowExecutionFromCloudWatchLogs"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.log_processor.function_name
+  principal     = "logs.amazonaws.com"
+  # No source_account restriction to allow destination test and cross-account invocation
+}
+
+# IAM role for CloudWatch Logs destination (in Account A)
+resource "aws_iam_role" "cloudwatch_logs_role" {
+  name = "${var.lambda_function_name}-destination-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# IAM policy for CloudWatch Logs to invoke Lambda
+resource "aws_iam_role_policy" "cloudwatch_logs_policy" {
+  name = "cloudwatch-logs-lambda-invoke-policy"
+  role = aws_iam_role.cloudwatch_logs_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = aws_lambda_function.log_processor.arn
+      }
+    ]
+  })
+}
+
+# CloudWatch Logs Destination (in Account A, same as Lambda)
+resource "aws_cloudwatch_log_destination" "lambda_destination" {
+  name       = "${var.lambda_function_name}-destination"
+  role_arn   = aws_iam_role.cloudwatch_logs_role.arn
+  target_arn = aws_lambda_function.log_processor.arn
+
+  depends_on = [
+    aws_iam_role_policy.cloudwatch_logs_policy,
+    aws_lambda_permission.allow_cloudwatch
+  ]
+}
+
+# Destination Policy (allows Account B to use this destination)
+resource "aws_cloudwatch_log_destination_policy" "lambda_destination_policy" {
+  destination_name = aws_cloudwatch_log_destination.lambda_destination.name
+  access_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = var.cloudwatch_account_id
+        }
+        Action   = "logs:PutSubscriptionFilter"
+        Resource = aws_cloudwatch_log_destination.lambda_destination.arn
+      }
+    ]
+  })
 }

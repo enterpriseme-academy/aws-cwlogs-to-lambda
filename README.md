@@ -13,12 +13,25 @@ This Terraform configuration deploys a cross-account setup where CloudWatch Logs
 │  │  - Receives CloudWatch Logs       │ │
 │  │  - Prints/Processes log data      │ │
 │  │                                   │ │
-│  │  IAM Permission:                  │ │
-│  │  - Allows Account B to invoke     │ │
+│  │  Lambda Permission:               │ │
+│  │  - Allows CloudWatch Logs service │ │
+│  └───────────────────────────────────┘ │
+│                │                        │
+│                ▼                        │
+│  ┌───────────────────────────────────┐ │
+│  │  CloudWatch Destination           │ │
+│  │  - Receives from Account B        │ │
+│  │  - Routes to Lambda               │ │
+│  │                                   │ │
+│  │  IAM Role:                        │ │
+│  │  - Allows invoking Lambda         │ │
+│  │                                   │ │
+│  │  Destination Policy:              │ │
+│  │  - Allows Account B access        │ │
 │  └───────────────────────────────────┘ │
 └─────────────────────────────────────────┘
                     ▲
-                    │ Cross-Account Invocation
+                    │ Cross-Account Subscription
                     │
 ┌─────────────────────────────────────────┐
 │         Account B (CloudWatch)          │
@@ -32,15 +45,7 @@ This Terraform configuration deploys a cross-account setup where CloudWatch Logs
 │  ┌───────────────────────────────────┐ │
 │  │  Subscription Filter              │ │
 │  │  - Filters log events             │ │
-│  └───────────────────────────────────┘ │
-│                │                        │
-│                ▼                        │
-│  ┌───────────────────────────────────┐ │
-│  │  CloudWatch Destination           │ │
-│  │  - Points to Lambda in Account A  │ │
-│  │                                   │ │
-│  │  IAM Role:                        │ │
-│  │  - Allows invoking Lambda         │ │
+│  │  - Points to Destination in A     │ │
 │  └───────────────────────────────────┘ │
 └─────────────────────────────────────────┘
 ```
@@ -49,15 +54,15 @@ This Terraform configuration deploys a cross-account setup where CloudWatch Logs
 
 ### Account A (Lambda Account)
 - **Lambda Function**: Python function that receives, decompresses, and prints CloudWatch Logs
-- **IAM Role**: Allows Lambda to write to CloudWatch Logs for its own execution
-- **Lambda Permission**: Allows CloudWatch Logs from Account B to invoke the Lambda function
+- **Lambda IAM Role**: Allows Lambda to write to CloudWatch Logs for its own execution
+- **Lambda Permission**: Allows CloudWatch Logs service to invoke the Lambda function
+- **CloudWatch Destination**: Endpoint that receives log events from Account B and routes them to Lambda
+- **Destination IAM Role**: Allows the destination to invoke the Lambda function
+- **Destination Policy**: Grants Account B permission to send logs to this destination
 
 ### Account B (CloudWatch Account)
 - **CloudWatch Log Group**: Stores application logs
-- **CloudWatch Destination**: Points to the Lambda function in Account A
-- **IAM Role**: Allows CloudWatch Logs to invoke the Lambda function in Account A
-- **Subscription Filter**: Filters and forwards log events to the destination
-- **Destination Policy**: Allows the log group to use the destination
+- **Subscription Filter**: Filters and forwards log events to the destination in Account A
 
 ## Prerequisites
 
@@ -191,17 +196,17 @@ aws logs tail /aws/lambda/cloudwatch-logs-processor --follow
 
 ## Configuration Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `aws_region` | AWS region for resources | `us-east-1` |
-| `account_a_profile` | AWS CLI profile for Account A | `account-a` |
-| `account_b_profile` | AWS CLI profile for Account B | `account-b` |
-| `lambda_function_name` | Name of the Lambda function | `cloudwatch-logs-processor` |
-| `log_group_name` | Name of the CloudWatch Log Group | `/aws/application/logs` |
-| `retention_in_days` | Number of days to retain logs | `7` |
-| `subscription_filter_name` | Name of the subscription filter | `lambda-subscription-filter` |
-| `filter_pattern` | CloudWatch Logs filter pattern | `""` (all logs) |
-| `tags` | Tags to apply to all resources | See `variables.tf` |
+| Variable                   | Description                      | Default                      |
+| -------------------------- | -------------------------------- | ---------------------------- |
+| `aws_region`               | AWS region for resources         | `us-east-1`                  |
+| `account_a_profile`        | AWS CLI profile for Account A    | `account-a`                  |
+| `account_b_profile`        | AWS CLI profile for Account B    | `account-b`                  |
+| `lambda_function_name`     | Name of the Lambda function      | `cloudwatch-logs-processor`  |
+| `log_group_name`           | Name of the CloudWatch Log Group | `/aws/application/logs`      |
+| `retention_in_days`        | Number of days to retain logs    | `7`                          |
+| `subscription_filter_name` | Name of the subscription filter  | `lambda-subscription-filter` |
+| `filter_pattern`           | CloudWatch Logs filter pattern   | `""` (all logs)              |
+| `tags`                     | Tags to apply to all resources   | See `variables.tf`           |
 
 ## Filter Patterns
 
@@ -216,15 +221,16 @@ See [AWS CloudWatch Logs Filter Pattern Syntax](https://docs.aws.amazon.com/Amaz
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
-| `account_a_id` | Account A (Lambda) ID |
-| `account_b_id` | Account B (CloudWatch) ID |
-| `lambda_function_arn` | ARN of the Lambda function |
-| `lambda_function_name` | Name of the Lambda function |
-| `log_group_name` | Name of the CloudWatch Log Group |
-| `log_group_arn` | ARN of the CloudWatch Log Group |
-| `subscription_filter_name` | Name of the subscription filter |
+| Output                     | Description                                         |
+| -------------------------- | --------------------------------------------------- |
+| `account_a_id`             | Account A (Lambda) ID                               |
+| `account_b_id`             | Account B (CloudWatch) ID                           |
+| `lambda_function_arn`      | ARN of the Lambda function in Account A             |
+| `lambda_function_name`     | Name of the Lambda function in Account A            |
+| `log_group_name`           | Name of the CloudWatch Log Group in Account B       |
+| `log_group_arn`            | ARN of the CloudWatch Log Group in Account B        |
+| `subscription_filter_name` | Name of the subscription filter in Account B        |
+| `destination_arn`          | ARN of the CloudWatch Logs Destination in Account A |
 
 ## Lambda Function
 
@@ -261,9 +267,10 @@ terraform destroy
 ### Lambda is not being invoked
 
 1. Check CloudWatch Logs subscription filter status in Account B
-2. Verify Lambda permissions allow invocation from Account B
-3. Check CloudWatch Logs IAM role has permission to invoke Lambda
-4. Review CloudWatch Logs destination policy
+2. Verify Lambda permission allows invocation from CloudWatch Logs service
+3. Check the destination IAM role in Account A has permission to invoke Lambda
+4. Review the destination policy in Account A allows Account B to use the destination
+5. Verify the subscription filter in Account B correctly references the destination ARN from Account A
 
 ### No logs appearing in Lambda
 

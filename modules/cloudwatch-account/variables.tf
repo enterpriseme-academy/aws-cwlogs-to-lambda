@@ -10,13 +10,8 @@ variable "retention_in_days" {
   default     = 7
 }
 
-variable "lambda_function_arn" {
-  description = "ARN of the Lambda function in Account A"
-  type        = string
-}
-
-variable "lambda_account_id" {
-  description = "AWS Account ID of the Lambda account (Account A)"
+variable "destination_arn" {
+  description = "ARN of the CloudWatch Logs Destination in Account A"
   type        = string
 }
 

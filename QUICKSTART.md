@@ -81,8 +81,8 @@ terraform apply -auto-approve
 ```
 
 **What gets created:**
-- Account A: 1 Lambda function, 1 IAM role, 1 Lambda permission
-- Account B: 1 Log group, 1 IAM role, 1 Destination, 1 Subscription filter
+- Account A: 1 Lambda function, 1 Lambda IAM role, 1 Lambda permission, 1 CloudWatch Destination, 1 Destination IAM role, 1 Destination policy
+- Account B: 1 Log group, 1 Subscription filter
 
 ### Step 5: Test the Setup
 
@@ -98,7 +98,7 @@ aws logs put-log-events \
   --profile account-b \
   --log-group-name "/aws/application/logs" \
   --log-stream-name "test-stream" \
-  --log-events timestamp=$(date +%s000),message="Hello from Account B!"
+  --log-events timestamp=$(date +%s000),message='Hello from Account B!'
 
 # Wait a few seconds, then check Lambda logs in Account A
 aws logs tail /aws/lambda/cloudwatch-logs-processor \

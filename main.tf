@@ -6,10 +6,10 @@ module "lambda_account" {
     aws = aws.account_a
   }
 
-  lambda_function_name    = var.lambda_function_name
-  cloudwatch_account_id   = data.aws_caller_identity.account_b.account_id
+  lambda_function_name     = var.lambda_function_name
+  cloudwatch_account_id    = data.aws_caller_identity.account_b.account_id
   cloudwatch_log_group_arn = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.account_b.account_id}:log-group:${var.log_group_name}:*"
-  tags                    = var.tags
+  tags                     = var.tags
 }
 
 # Deploy CloudWatch Log Group and subscription in Account B
@@ -22,8 +22,7 @@ module "cloudwatch_account" {
 
   log_group_name           = var.log_group_name
   retention_in_days        = var.retention_in_days
-  lambda_function_arn      = module.lambda_account.lambda_function_arn
-  lambda_account_id        = data.aws_caller_identity.account_a.account_id
+  destination_arn          = module.lambda_account.destination_arn
   subscription_filter_name = var.subscription_filter_name
   filter_pattern           = var.filter_pattern
   tags                     = var.tags

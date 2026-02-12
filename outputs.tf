@@ -32,3 +32,8 @@ output "subscription_filter_name" {
   description = "Name of the subscription filter in Account B"
   value       = module.cloudwatch_account.subscription_filter_name
 }
+
+output "destination_arn" {
+  description = "ARN of the CloudWatch Logs Destination in Account A"
+  value       = module.lambda_account.destination_arn
+}

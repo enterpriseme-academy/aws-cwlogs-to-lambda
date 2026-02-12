@@ -19,8 +19,25 @@ When you run `terraform apply`, Terraform first deploys resources in Account A:
    - Configures handler, runtime (Python 3.9), and timeout
 
 4. **Lambda Permission** (`aws_lambda_permission.allow_cloudwatch`)
-   - Grants CloudWatch Logs from Account B permission to invoke this Lambda
-   - Restricts invocation to a specific log group in Account B
+   - Grants CloudWatch Logs service permission to invoke this Lambda
+   - Allows cross-account invocation from Account B
+
+5. **Destination IAM Role** (`aws_iam_role.cloudwatch_logs_role`)
+   - Creates an IAM role for CloudWatch Logs Destination
+   - Allows CloudWatch Logs service to assume this role
+
+6. **Destination IAM Policy** (`aws_iam_role_policy.cloudwatch_logs_policy`)
+   - Grants permission to invoke the Lambda function
+   - Attached to the destination IAM role
+
+7. **CloudWatch Destination** (`aws_cloudwatch_log_destination.lambda_destination`)
+   - Creates a destination that routes log events to the Lambda function
+   - Uses the IAM role to invoke Lambda
+   - **Critical**: Must be in the same account as the Lambda function
+
+8. **Destination Policy** (`aws_cloudwatch_log_destination_policy.lambda_destination_policy`)
+   - Grants Account B permission to use this destination
+   - Allows PutSubscriptionFilter action from Account B
 
 ### 2. Account B - CloudWatch Deployment
 After Account A resources are created, Terraform deploys resources in Account B:
@@ -29,26 +46,11 @@ After Account A resources are created, Terraform deploys resources in Account B:
    - Creates a log group to store application logs
    - Sets retention period
 
-2. **CloudWatch IAM Role** (`aws_iam_role.cloudwatch_logs_role`)
-   - Creates an IAM role for CloudWatch Logs service
-   - Allows CloudWatch Logs to assume this role
-
-3. **IAM Policy** (`aws_iam_role_policy.cloudwatch_logs_policy`)
-   - Grants permission to invoke the Lambda function in Account A
-   - Attached to the CloudWatch Logs role
-
-4. **CloudWatch Destination** (`aws_cloudwatch_log_destination.lambda_destination`)
-   - Creates a destination pointing to the Lambda function in Account A
-   - Uses the IAM role to invoke Lambda
-
-5. **Destination Policy** (`aws_cloudwatch_log_destination_policy.lambda_destination_policy`)
-   - Grants permission for the log group to use the destination
-   - Allows PutSubscriptionFilter action
-
-6. **Subscription Filter** (`aws_cloudwatch_log_subscription_filter.lambda_subscription`)
+2. **Subscription Filter** (`aws_cloudwatch_log_subscription_filter.lambda_subscription`)
    - Creates a subscription filter on the log group
    - Filters log events based on the pattern
-   - Sends matching events to the destination (Lambda)
+   - References the destination in Account A
+   - Sends matching events cross-account to the destination
 
 ## Data Flow
 
@@ -62,12 +64,14 @@ CloudWatch Log Group (Account B)
     │
     ├─> Filter logs (Subscription Filter)
     │
+    ├─> Cross-Account Call
+    │
     ▼
-CloudWatch Destination (Account B)
+CloudWatch Destination (Account A)
     │
-    ├─> Assume IAM Role
+    ├─> Assume IAM Role (Account A)
     │
-    ├─> Cross-Account Invocation
+    ├─> Invoke Lambda
     │
     ▼
 Lambda Function (Account A)
@@ -103,14 +107,21 @@ Lambda CloudWatch Logs (Account A)
 ## Security Considerations
 
 ### Cross-Account Permissions
-1. **Lambda Permission**: Lambda explicitly allows invocation from Account B
-2. **IAM Role**: Account B's CloudWatch Logs role can assume a role to invoke Lambda
-3. **Destination Policy**: Controls who can create subscription filters to the destination
+1. **Lambda Permission**: Lambda explicitly allows invocation from CloudWatch Logs service
+2. **Destination IAM Role**: The destination in Account A assumes an IAM role to invoke Lambda (same account)
+3. **Destination Policy**: Controls which accounts can create subscription filters to the destination (Account B)
 
 ### Least Privilege
 - Lambda only has basic execution permissions
-- CloudWatch role only has permission to invoke the specific Lambda function
+- Destination IAM role only has permission to invoke the specific Lambda function
+- Destination policy only allows Account B to use the destination
 - No wildcard permissions granted
+
+### Key Architectural Point
+**The CloudWatch Logs Destination must be in the same AWS account as the Lambda function.**
+This is an AWS requirement - the destination and its target (Lambda) cannot be in different accounts.
+The cross-account boundary is between:
+- Account B's subscription filter → Account A's destination
 
 ## Customization Points
 
