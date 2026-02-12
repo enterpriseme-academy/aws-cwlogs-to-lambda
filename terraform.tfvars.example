@@ -1,0 +1,23 @@
+# AWS Region
+aws_region = "us-east-1"
+
+# AWS Profiles - Configure these in your ~/.aws/credentials file
+# Or use assume_role in providers.tf instead
+account_a_profile = "account-a"  # Profile for Lambda account
+account_b_profile = "account-b"  # Profile for CloudWatch account
+
+# Lambda Configuration
+lambda_function_name = "cloudwatch-logs-processor"
+
+# CloudWatch Configuration
+log_group_name           = "/aws/application/logs"
+retention_in_days        = 7
+subscription_filter_name = "lambda-subscription-filter"
+filter_pattern           = ""  # Empty string captures all logs
+
+# Tags
+tags = {
+  Project     = "CloudWatch-to-Lambda"
+  ManagedBy   = "Terraform"
+  Environment = "dev"
+}
